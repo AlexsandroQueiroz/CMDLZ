@@ -236,6 +236,26 @@ if uploaded_file:
     df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
+    # --- Filtros para limpar dados indesejados ---
+
+    # 1️⃣ Manter apenas Shipments que começam com '8'
+    if "SHIPMENT" in df_conciliacao.columns:
+        df_conciliacao = df_conciliacao[df_conciliacao["SHIPMENT"].astype(str).str.startswith("8")]
+
+    # 2️⃣ Manter apenas Tabelas Usadas válidas
+    if "Tabela usada" in df_conciliacao.columns:
+        tabelas_validas = [
+            "Fracionado + Reefer",
+            "Carreta + Reefer",
+            "Fracionado + Dry",
+            "Carreta + Dry"
+        ]
+        df_conciliacao = df_conciliacao[df_conciliacao["Tabela usada"].isin(tabelas_validas)]
+
+    # Resetar o índice após filtrar
+    df_conciliacao.reset_index(drop=True, inplace=True)
+
+
     # --- Garantir 2 casas decimais para colunas de valores monetários ---
     for col in ["DED/PAR_CORR($)", "PALLET_CORR($)"]:
         if col in df_conciliacao.columns:
