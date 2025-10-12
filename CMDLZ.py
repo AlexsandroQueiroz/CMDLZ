@@ -4,7 +4,8 @@ import numpy as np
 from io import BytesIO
 
 # --- Configuração da página ---
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Conciliação de Fretes - Rodobras")
+
 st.title("Conciliação de Fretes - Rodobras")
 
 # --- Função para converter DataFrame em Excel ---
@@ -94,7 +95,6 @@ if uploaded_file:
     url_online = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRdZRJ5YctVpKyawelp6CT1ZEkqIAbkqjyRh9DBElof0X0hadYs9ujvKgdqUanPFg/pub?output=csv"
     df_online = pd.read_csv(url_online, header=0)
     df_online.columns = df_online.columns.str.strip()
-
     df_online["TIPO_CARGA_ONLINE"] = df_online.iloc[:, 9].str.upper().str.split("_").str[0]
     df_online["TIPO_OFERTA_ONLINE"] = df_online.iloc[:, 24].str.upper()
     df_online["Tabela_correta"] = df_online["TIPO_OFERTA_ONLINE"].str.capitalize() + " + " + df_online["TIPO_CARGA_ONLINE"].str.capitalize()
@@ -156,11 +156,7 @@ if uploaded_file:
     df["FRETE_CORRETO"] = df.apply(calcular_frete, axis=1)
 
     # --- Inicializar DED/PAR_CORR ---
-    def pegar_dedicado(cnpj):
-        cnpj = str(cnpj).strip().replace("\xa0","")
-        return cnpj_especiais.get(cnpj, {}).get("DEDICADO", 0.0)
-
-    df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(pegar_dedicado)
+    df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(lambda cnpj: cnpj_especiais.get(str(cnpj).strip().replace("\xa0",""), {}).get("DEDICADO", 0.0))
 
     # --- Identificar Multistop ---
     df["SHIP_PREFIX"] = df["SHIPMENT"].str[:-2]
@@ -230,9 +226,21 @@ if uploaded_file:
     df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
-    # --- Exibir resultados ---
+    # --- Formatação visual ---
+    def color_divergencias(val):
+        if val=="OK":
+            return 'background-color: #d4edda; color: #155724'  # verde claro
+        elif val=="ERRO":
+            return 'background-color: #f8d7da; color: #721c24'  # vermelho claro
+        else:
+            return ''
+
     st.success("✅ Conciliação concluída com sucesso!")
-    st.dataframe(df_conciliacao, use_container_width=True)
+
+    st.dataframe(
+        df_conciliacao.style.applymap(color_divergencias, subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]),
+        use_container_width=True
+    )
 
     # --- Botão de download ---
     excel_data = to_excel(df_conciliacao)
