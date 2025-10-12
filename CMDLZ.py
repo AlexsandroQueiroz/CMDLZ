@@ -3,6 +3,16 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
+
+# --- Senha ---
+SENHA_CORRETA = "RodobrasIA"  # Troque para a senha que você quiser
+senha_input = st.text_input("Digite a senha para acessar o app:", type="password")
+
+# Verifica se a senha está correta
+if senha_input != SENHA_CORRETA:
+    st.warning("🔒 Senha incorreta ou não informada!")
+    st.stop()  # Para a execução do app até a senha correta ser digitada
+
 # --- Configuração da página ---
 st.set_page_config(layout="wide", page_title="Conciliação de Fretes - Rodobras")
 
