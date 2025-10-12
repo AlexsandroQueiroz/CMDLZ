@@ -67,7 +67,7 @@ if uploaded_file:
             df[col] = 0.0
 
     # --- Ler Tabela MDLZ ---
-    caminho_mdlz = r"C:\Users\Rodobras_Foods\Documents\Arquivos\Python\Conciliação de fretes MDLZ\Tabela_MDLZ.xlsx"
+    caminho_mdlz = r"C:\Users\Rodobras_Foods\Documents\Arquivos\Github\CMDLZ\Tabela_MDLZ.xlsx"
     df_mdlz = pd.read_excel(caminho_mdlz, sheet_name="Tabela")
     df_mdlz.columns = df_mdlz.columns.str.strip()
     df_mdlz[["TIPO DE OFERTA","TIPO DE CARGA","CIDADE","UF"]] = df_mdlz[["TIPO DE OFERTA","TIPO DE CARGA","CIDADE","UF"]].apply(lambda x: x.astype(str).str.strip().str.upper())
