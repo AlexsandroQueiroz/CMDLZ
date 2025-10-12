@@ -3,8 +3,17 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
+# --- Configuração da página ---
 st.set_page_config(layout="wide")
 st.title("Conciliação de Fretes - Rodobras")
+
+# --- Função para converter DataFrame em Excel ---
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Conciliação')
+    processed_data = output.getvalue()
+    return processed_data
 
 # --- Upload do arquivo TMS ---
 uploaded_file = st.file_uploader("Escolha o arquivo exportado do TMS", type=["xlsx", "csv"])
@@ -143,60 +152,46 @@ if uploaded_file:
         "82647165002672": {"DEDICADO": 0.0, "PE": 141.91},
     }
 
-    # --- Inicializar FRETE_CORRETO ---
+    # --- Calcular frete correto ---
     df["FRETE_CORRETO"] = df.apply(calcular_frete, axis=1)
 
-    # --- Inicializar DED/PAR_CORR com valor do CNPJ ---
+    # --- Inicializar DED/PAR_CORR ---
     def pegar_dedicado(cnpj):
         cnpj = str(cnpj).strip().replace("\xa0","")
         return cnpj_especiais.get(cnpj, {}).get("DEDICADO", 0.0)
 
     df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(pegar_dedicado)
 
-        # --- Identificar Multistop corretamente ---
+    # --- Identificar Multistop ---
     df["SHIP_PREFIX"] = df["SHIPMENT"].str[:-2]
     df["SHIP_SUFFIX"] = df["SHIPMENT"].str[-2:]
-
-    # Inicializa MULTISTOP como False
     df["MULTISTOP"] = False
-
-    # Marca 13 e 14 como True
     df.loc[df["SHIP_SUFFIX"].isin(["13","14"]), "MULTISTOP"] = True
-
-    # Para sufixo 12, marca apenas se existir 13 com mesmo prefixo
     prefixos_13 = df.loc[df["SHIP_SUFFIX"]=="13", "SHIP_PREFIX"].unique()
     df.loc[(df["SHIP_SUFFIX"]=="12") & (df["SHIP_PREFIX"].isin(prefixos_13)), "MULTISTOP"] = True
-
-    # Atualiza coluna MT
     df["MT"] = np.where(df["MULTISTOP"], "S", "N")
 
-    # --- Rateio Multistop (sobrescreve DED/PAR_CORR apenas para Multistop) ---
+    # --- Rateio Multistop ---
     df_multistop = df[df["MULTISTOP"]].copy()
     if not df_multistop.empty:
         for prefix in df_multistop["SHIP_PREFIX"].unique():
             grupo_idx = df[df["SHIP_PREFIX"] == prefix].index
             grupo = df.loc[grupo_idx].copy().sort_values("SHIPMENT")
 
-            # --- Calcula peso base proporcional ---
             grupo["PESO_BASE"] = np.maximum(
                 grupo["PESO REAL"],
                 grupo["M3"] * (312*(grupo["TIPO_CARGA"]=="REEFER") + 300*(grupo["TIPO_CARGA"]=="DRY"))
             )
             total_peso = grupo["PESO_BASE"].sum()
-
-            # --- Pega o FRETE_CORRETO da tabela apenas uma vez ---
             frete_faixa = calcular_frete(grupo.iloc[0])
             grupo["FRETE_RATEIO"] = (grupo["PESO_BASE"]/total_peso) * frete_faixa
 
-            # --- Rateio DED/PAR ---
             VALOR_PARADA = 990.14
             grupo["PARADA_TOTAL"] = [0] + [VALOR_PARADA]*(len(grupo)-1)
             grupo["DED/PAR_CORR"] = (grupo["PESO_BASE"]/total_peso) * grupo["PARADA_TOTAL"].sum()
 
-            # --- Atualiza o DataFrame original ---
             df.loc[grupo_idx, ["FRETE_CORRETO","DED/PAR_CORR"]] = grupo[["FRETE_RATEIO","DED/PAR_CORR"]].values
 
-    # --- Limpeza ---
     df.drop(columns=["SHIP_PREFIX","SHIP_SUFFIX"], inplace=True)
 
     # --- PALLET_CORR e TEM_PE? ---
@@ -210,7 +205,7 @@ if uploaded_file:
     df["PEDAGIO_CORR"] = df.apply(lambda row: round(row["PESO CALC"]*df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
                                                                                  (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA"]) &
                                                                                  (df_mdlz["CIDADE"]==row["CIDADE DESTINO"]) &
-                                                                                 (df_mdlz["UF"]==row["UF"]),"PEDAGIO"].values[0],2)
+                                                                                 (df_mdlz["UF"]==row["UF"])].iloc[0]["PEDAGIO"],2)
                                   if row["TIPO_OFERTA"]=="FRACIONADO" and not df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
                                                                                          (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA"]) &
                                                                                          (df_mdlz["CIDADE"]==row["CIDADE DESTINO"]) &
@@ -220,13 +215,11 @@ if uploaded_file:
     df["DIV_ADEVALOREM"] = np.where(abs(df["ADEVALOREM"]-df["ADEVALOREM_CORR"])<=0.05,"OK","ERRO")
     df["DIV_PEDAGIO"] = np.where(abs(df["PEDAGIO"]-df["PEDAGIO_CORR"])<=0.05,"OK","ERRO")
 
-    # --- Formatar DATA DE AUTORIZACAO ---
+    # --- Formatando data ---
     df["DATA DE AUTORIZACAO"] = pd.to_datetime(df["DATA DE AUTORIZACAO"], errors="coerce").dt.strftime("%d/%m/%Y")
 
-    # --- Criar coluna PESO_CT-e (valor do TMS) ---
+    # --- Colunas finais ---
     df["PESO_CT-e"] = df["PESO REAL"]
-
-    # --- Seleção e renomeação das colunas finais ---
     colunas_validas = [
         "SHIPMENT","MT","CTRC/SUBCON","Tabela usada","Tabela_correta","DATA DE AUTORIZACAO",
         "CIDADE DESTINO","UF","PESO_OFER","PESO_CT-e","FRETE_OFER","FRETE PESO","FRETE_CORRETO",
@@ -235,60 +228,20 @@ if uploaded_file:
         "DIV_DED/PAR","TEM_PE?","PALLET_CORR"
     ]   
     df_conciliacao = df[colunas_validas].copy()
-    df_conciliacao.rename(columns={
-        "CTRC/SUBCON": "CTRC",
-        "Tabela usada": "TABELA USADA",
-        "Tabela_correta": "TABELA CORRETA",
-        "DATA DE AUTORIZACAO": "DATA",
-        "CIDADE DESTINO": "CIDADE"
-    }, inplace=True)
+    df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
-    # --- Estilização ---
-    def colorir_divergencias(val):
-        if val=="ERRO": return "background-color: #ff4d4d; color: white;"
-        elif val=="OK": return "background-color: #4CAF50; color: white;"
-        return ""
+    # --- Exibir resultados ---
+    st.success("✅ Conciliação concluída com sucesso!")
+    st.dataframe(df_conciliacao, use_container_width=True)
 
-    colunas_formatar = ["PESO_CT-e","FRETE PESO","FRETE_CORRETO","FRETE_OFER",
-                        "DESCARGA","DESCARGA_CORR","ADEVALOREM","ADEVALOREM_CORR",
-                        "PEDAGIO","PEDAGIO_CORR","DEDICADO/PARADA","DED/PAR_CORR","PALLET_CORR"]
+    # --- Botão de download ---
+    excel_data = to_excel(df_conciliacao)
+    st.download_button(
+        label="📥 Baixar base em Excel",
+        data=excel_data,
+        file_name="Conciliação_Fretes.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-    def limpar_valor(val):
-        val = str(val).strip()
-        if val=="" or val.lower()=="nan": return np.nan
-        if "," in val:
-            val = val.replace(".","").replace(",",".")
-        else:
-            val = val.replace(",","")
-        try:
-            return float(val)
-        except:
-            return np.nan
-
-    for col in colunas_formatar:
-        if col in df_conciliacao.columns:
-            df_conciliacao[col] = df_conciliacao[col].apply(limpar_valor)
-            if col=="FRETE_OFER": df_conciliacao[col] = df_conciliacao[col]/0.9635
-            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
-
-
-
-    st.dataframe(df_conciliacao.style.map(colorir_divergencias, subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]))
-
-    # --- Função para converter DataFrame em Excel ---
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Conciliação')
-    processed_data = output.getvalue()
-    return processed_data
-
-# --- Gerar arquivo Excel ---
-excel_data = to_excel(df_conciliacao)
-
-# --- Botão de download ---
-st.download_button(
-    label="📥 Baixar base em Excel",
-    data=excel_data,
-    file_name="Conciliação_Fretes.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+else:
+    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")
