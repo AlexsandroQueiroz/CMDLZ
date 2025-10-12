@@ -273,6 +273,12 @@ if uploaded_file:
                 df_conciliacao[col] = df_conciliacao[col] / 0.9635  # ajuste específico
             df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
 
+    # --- Garantir duas casas decimais nas colunas financeiras ---
+    colunas_financeiras = ["FRETE_CORRETO","DED/PAR_CORR($)","PALLET_CORR($)","FRETE PESO","FRETE_OFER","DESCARGA_CORR","ADEVALOREM_CORR","PEDAGIO_CORR"]
+    for col in colunas_financeiras:
+        if col in df_conciliacao.columns:
+            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: round(float(x), 2))
+
     # --- Exibir DataFrame com estilo ---
     st.dataframe(
         df_conciliacao.style.map(
