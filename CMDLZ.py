@@ -236,6 +236,12 @@ if uploaded_file:
     df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
+    # --- Garantir 2 casas decimais para colunas de valores monetários ---
+    for col in ["DED/PAR_CORR($)", "PALLET_CORR($)"]:
+        if col in df_conciliacao.columns:
+            df_conciliacao[col] = df_conciliacao[col].round(2)
+            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+
         # --- Estilização e formatação ---
     def colorir_divergencias(val):
         if val == "ERRO":
