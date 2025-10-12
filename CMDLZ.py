@@ -226,19 +226,49 @@ if uploaded_file:
     df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
-    # --- Formatação visual ---
-    def color_divergencias(val):
-        if val=="OK":
-            return 'background-color: #d4edda; color: #155724'  # verde claro
-        elif val=="ERRO":
-            return 'background-color: #f8d7da; color: #721c24'  # vermelho claro
+        # --- Estilização e formatação ---
+    def colorir_divergencias(val):
+        if val == "ERRO":
+            return "background-color: #ff4d4d; color: white;"
+        elif val == "OK":
+            return "background-color: #4CAF50; color: white;"
+        return ""
+
+    # Colunas numéricas a formatar
+    colunas_formatar = [
+        "PESO_CT-e","FRETE PESO","FRETE_CORRETO","FRETE_OFER",
+        "DESCARGA","DESCARGA_CORR","ADEVALOREM","ADEVALOREM_CORR",
+        "PEDAGIO","PEDAGIO_CORR","DEDICADO/PARADA","DED/PAR_CORR","PALLET_CORR($)"
+    ]
+
+    # Função para limpar e converter valores
+    def limpar_valor(val):
+        val = str(val).strip()
+        if val=="" or val.lower()=="nan":
+            return np.nan
+        if "," in val:
+            val = val.replace(".","").replace(",",".")
         else:
-            return ''
+            val = val.replace(",","")
+        try:
+            return float(val)
+        except:
+            return np.nan
 
-    st.success("✅ Conciliação concluída com sucesso!")
+    # Aplicar limpeza e formatação
+    for col in colunas_formatar:
+        if col in df_conciliacao.columns:
+            df_conciliacao[col] = df_conciliacao[col].apply(limpar_valor)
+            if col == "FRETE_OFER":
+                df_conciliacao[col] = df_conciliacao[col] / 0.9635  # ajuste específico
+            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
 
+    # --- Exibir DataFrame com estilo ---
     st.dataframe(
-        df_conciliacao.style.applymap(color_divergencias, subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]),
+        df_conciliacao.style.map(
+            colorir_divergencias,
+            subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]
+        ),
         use_container_width=True
     )
 
@@ -252,4 +282,4 @@ if uploaded_file:
     )
 
 else:
-    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")
+    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")           
