@@ -231,7 +231,9 @@ if uploaded_file:
         "DIV_ADEVALOREM","PEDAGIO","PEDAGIO_CORR","DIV_PEDAGIO","DEDICADO/PARADA","DED/PAR_CORR($)",
         "DIV_DED/PAR","TEM_PE?","PALLET_CORR($)"
     ]   
-    df_conciliacao = df[colunas_validas].copy()
+    colunas_validas_existentes = [col for col in colunas_validas if col in df.columns]
+    df_conciliacao = df[colunas_validas_existentes].copy()
+
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
     # --- Filtros ---
