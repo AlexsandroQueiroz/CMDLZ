@@ -3,27 +3,26 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
+
 # --- Senha ---
-SENHA_CORRETA = "RodobrasIA"
+SENHA_CORRETA = "RodobrasIA"  # Troque para a senha que você quiser
 senha_input = st.text_input("Digite a senha para acessar o app:", type="password")
+
+# Verifica se a senha está correta
 if senha_input != SENHA_CORRETA:
     st.warning("🔒 Senha incorreta ou não informada!")
-    st.stop()
+    st.stop()  # Para a execução do app até a senha correta ser digitada
 
 # --- Configuração da página ---
 st.set_page_config(layout="wide", page_title="Conciliação de Fretes - Rodobras")
+
 st.title("Conciliação de Fretes - Rodobras")
 
 # --- Função para converter DataFrame em Excel ---
 def to_excel(df):
     output = BytesIO()
-    df_excel = df.copy()
-    # Arredondar apenas na exportação
-    for col in colunas_numericas:
-        if col in df_excel.columns:
-            df_excel[col] = df_excel[col].round(2)
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df_excel.to_excel(writer, index=False, sheet_name='Conciliação')
+        df.to_excel(writer, index=False, sheet_name='Conciliação')
     processed_data = output.getvalue()
     return processed_data
 
@@ -184,6 +183,7 @@ if uploaded_file:
         for prefix in df_multistop["SHIP_PREFIX"].unique():
             grupo_idx = df[df["SHIP_PREFIX"] == prefix].index
             grupo = df.loc[grupo_idx].copy().sort_values("SHIPMENT")
+
             grupo["PESO_BASE"] = np.maximum(
                 grupo["PESO REAL"],
                 grupo["M3"] * (312*(grupo["TIPO_CARGA"]=="REEFER") + 300*(grupo["TIPO_CARGA"]=="DRY"))
@@ -191,9 +191,11 @@ if uploaded_file:
             total_peso = grupo["PESO_BASE"].sum()
             frete_faixa = calcular_frete(grupo.iloc[0])
             grupo["FRETE_RATEIO"] = (grupo["PESO_BASE"]/total_peso) * frete_faixa
+
             VALOR_PARADA = 990.14
             grupo["PARADA_TOTAL"] = [0] + [VALOR_PARADA]*(len(grupo)-1)
             grupo["DED/PAR_CORR"] = (grupo["PESO_BASE"]/total_peso) * grupo["PARADA_TOTAL"].sum()
+
             df.loc[grupo_idx, ["FRETE_CORRETO","DED/PAR_CORR"]] = grupo[["FRETE_RATEIO","DED/PAR_CORR"]].values
 
     df.drop(columns=["SHIP_PREFIX","SHIP_SUFFIX"], inplace=True)
@@ -228,34 +230,39 @@ if uploaded_file:
         "SHIPMENT","MT","CTRC/SUBCON","Tabela usada","Tabela_correta","DATA DE AUTORIZACAO",
         "CIDADE DESTINO","UF","PESO_OFER","PESO_CT-e","FRETE_OFER","FRETE PESO","FRETE_CORRETO",
         "DIV_FRETE","DESCARGA","DESCARGA_CORR","DIV_DESCARGA","ADEVALOREM","ADEVALOREM_CORR",
-        "DIV_ADEVALOREM","PEDAGIO","PEDAGIO_CORR","DIV_PEDAGIO","DEDICADO/PARADA","DED/PAR_CORR($)",
-        "DIV_DED/PAR","TEM_PE?","PALLET_CORR($)"
+        "DIV_ADEVALOREM","PEDAGIO","PEDAGIO_CORR","DIV_PEDAGIO","DEDICADO/PARADA","DED/PAR_CORR",
+        "DIV_DED/PAR","TEM_PE?","PALLET_CORR"
     ]   
-    colunas_validas_existentes = [col for col in colunas_validas if col in df.columns]
-    df_conciliacao = df[colunas_validas_existentes].copy()
-
+    df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
-    # --- Filtros ---
-    df_conciliacao = df_conciliacao[df_conciliacao["SHIPMENT"].astype(str).str.startswith("8")]
-    tabelas_validas = ["Fracionado + Reefer","Carreta + Reefer","Fracionado + Dry","Carreta + Dry"]
-    df_conciliacao = df_conciliacao[df_conciliacao["Tabela usada"].isin(tabelas_validas)]
+    # --- Filtros para limpar dados indesejados ---
+
+    # 1️⃣ Manter apenas Shipments que começam com '8'
+    if "SHIPMENT" in df_conciliacao.columns:
+        df_conciliacao = df_conciliacao[df_conciliacao["SHIPMENT"].astype(str).str.startswith("8")]
+
+    # 2️⃣ Manter apenas Tabelas Usadas válidas
+    if "Tabela usada" in df_conciliacao.columns:
+        tabelas_validas = [
+            "Fracionado + Reefer",
+            "Carreta + Reefer",
+            "Fracionado + Dry",
+            "Carreta + Dry"
+        ]
+        df_conciliacao = df_conciliacao[df_conciliacao["Tabela usada"].isin(tabelas_validas)]
+
+    # Resetar o índice após filtrar
     df_conciliacao.reset_index(drop=True, inplace=True)
 
-    # --- Colunas numéricas para o Dash ---
-    colunas_numericas = [
-        "PESO_OFER","PESO_CT-e","FRETE_OFER","FRETE PESO","FRETE_CORRETO",
-        "DESCARGA","DESCARGA_CORR","ADEVALOREM","ADEVALOREM_CORR",
-        "PEDAGIO","PEDAGIO_CORR","DEDICADO/PARADA","DED/PAR_CORR($)","PALLET_CORR($)"
-    ]
-    for col in colunas_numericas:
+
+    # --- Garantir 2 casas decimais para colunas de valores monetários ---
+    for col in ["DED/PAR_CORR($)", "PALLET_CORR($)"]:
         if col in df_conciliacao.columns:
-            df_conciliacao[col] = pd.to_numeric(df_conciliacao[col], errors="coerce").fillna(0.0)
+            df_conciliacao[col] = df_conciliacao[col].round(2)
+            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
 
-    # Ajuste FRETE_OFER
-    df_conciliacao["FRETE_OFER"] = df_conciliacao["FRETE_OFER"] / 0.9635
-
-    # --- Estilização ---
+        # --- Estilização e formatação ---
     def colorir_divergencias(val):
         if val == "ERRO":
             return "background-color: #ff4d4d; color: white;"
@@ -263,6 +270,37 @@ if uploaded_file:
             return "background-color: #4CAF50; color: white;"
         return ""
 
+    # Colunas numéricas a formatar
+    colunas_formatar = [
+        "PESO_CT-e","FRETE PESO","FRETE_CORRETO","FRETE_OFER",
+        "DESCARGA","DESCARGA_CORR","ADEVALOREM","ADEVALOREM_CORR",
+        "PEDAGIO","PEDAGIO_CORR","DEDICADO/PARADA","DED/PAR_CORR","PALLET_CORR($)"
+    ]
+
+    # Função para limpar e converter valores
+    def limpar_valor(val):
+        val = str(val).strip()
+        if val=="" or val.lower()=="nan":
+            return np.nan
+        if "," in val:
+            val = val.replace(".","").replace(",",".")
+        else:
+            val = val.replace(",","")
+        try:
+            return float(val)
+        except:
+            return np.nan
+
+    # Aplicar limpeza e formatação
+    for col in colunas_formatar:
+        if col in df_conciliacao.columns:
+            df_conciliacao[col] = df_conciliacao[col].apply(limpar_valor)
+            if col == "FRETE_OFER":
+                df_conciliacao[col] = df_conciliacao[col] / 0.9635  # ajuste específico
+            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+
+
+    # --- Exibir DataFrame com estilo ---
     st.dataframe(
         df_conciliacao.style.map(
             colorir_divergencias,
@@ -281,4 +319,4 @@ if uploaded_file:
     )
 
 else:
-    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")
+    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")           
