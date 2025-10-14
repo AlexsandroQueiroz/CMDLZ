@@ -328,10 +328,12 @@ if uploaded_file:
     # --- Exibir DataFrame com estilo (apenas nas colunas existentes) ---
     colunas_estilo = [c for c in ["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"] if c in df_conciliacao.columns]
 
-    st.dataframe(
-        df_conciliacao.style.map(colorir_divergencias, subset=colunas_estilo),
-        use_container_width=True
-    )
+    if colunas_estilo:
+        styled_df = df_conciliacao.style.map(colorir_divergencias, subset=colunas_estilo)
+    else:
+        styled_df = df_conciliacao  # se nenhuma coluna existir, mostra sem estilo
+
+    st.dataframe(styled_df, use_container_width=True)
 
     # --- Botão de download ---
     excel_data = to_excel(df_conciliacao)
