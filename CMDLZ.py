@@ -255,6 +255,31 @@ if uploaded_file:
     # Resetar o índice após filtrar
     df_conciliacao.reset_index(drop=True, inplace=True)
 
+    # --- Calcular diferença entre PESO_OFER e PESO_CT-e ---
+    if all(col in df_conciliacao.columns for col in ["PESO_OFER", "PESO_CT-e"]):
+        def to_float(val):
+            val = str(val).replace(".", "").replace(",", ".")
+            try:
+                return float(val)
+            except:
+                return np.nan
+
+        df_conciliacao["PESO_OFER_NUM"] = df_conciliacao["PESO_OFER"].apply(to_float)
+        df_conciliacao["PESO_CT-e_NUM"] = df_conciliacao["PESO_CT-e"].apply(to_float)
+        df_conciliacao["Div_Peso"] = (df_conciliacao["PESO_OFER_NUM"] - df_conciliacao["PESO_CT-e_NUM"]).round(2)
+
+        # Inserir a nova coluna logo após PESO_CT-e
+        colunas = list(df_conciliacao.columns)
+        idx_peso_cte = colunas.index("PESO_CT-e")
+        nova_ordem = colunas[:idx_peso_cte + 1] + ["Div_Peso"] + colunas[idx_peso_cte + 1:]
+        df_conciliacao = df_conciliacao[nova_ordem]
+
+        # Remover colunas auxiliares numéricas
+        df_conciliacao.drop(columns=["PESO_OFER_NUM", "PESO_CT-e_NUM"], inplace=True)
+
+
+
+
 
     # --- Garantir 2 casas decimais para colunas de valores monetários ---
     for col in ["DED/PAR_CORR($)", "PALLET_CORR($)"]:
