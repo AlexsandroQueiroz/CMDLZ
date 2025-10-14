@@ -325,12 +325,11 @@ if uploaded_file:
             df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
 
 
-    # --- Exibir DataFrame com estilo ---
+    # --- Exibir DataFrame com estilo (apenas nas colunas existentes) ---
+    colunas_estilo = [c for c in ["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"] if c in df_conciliacao.columns]
+
     st.dataframe(
-        df_conciliacao.style.map(
-            colorir_divergencias,
-            subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]
-        ),
+        df_conciliacao.style.map(colorir_divergencias, subset=colunas_estilo),
         use_container_width=True
     )
 
