@@ -3,19 +3,8 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 
-
-# --- Senha ---
-SENHA_CORRETA = "RodobrasIA"  # Troque para a senha que você quiser
-senha_input = st.text_input("Digite a senha para acessar o app:", type="password")
-
-# Verifica se a senha está correta
-if senha_input != SENHA_CORRETA:
-    st.warning("🔒 Senha incorreta ou não informada!")
-    st.stop()  # Para a execução do app até a senha correta ser digitada
-
 # --- Configuração da página ---
-st.set_page_config(layout="wide", page_title="Conciliação de Fretes - Rodobras")
-
+st.set_page_config(layout="wide")
 st.title("Conciliação de Fretes - Rodobras")
 
 # --- Função para converter DataFrame em Excel ---
@@ -78,7 +67,7 @@ if uploaded_file:
             df[col] = 0.0
 
     # --- Ler Tabela MDLZ ---
-    caminho_mdlz = "https://raw.githubusercontent.com/AlexsandroQueiroz/CMDLZ/main/Tabela_MDLZ.xlsx"
+    caminho_mdlz = r"C:\Users\Rodobras_Foods\Documents\Arquivos\Python\Conciliação de fretes MDLZ\Tabela_MDLZ.xlsx"
     df_mdlz = pd.read_excel(caminho_mdlz, sheet_name="Tabela")
     df_mdlz.columns = df_mdlz.columns.str.strip()
     df_mdlz[["TIPO DE OFERTA","TIPO DE CARGA","CIDADE","UF"]] = df_mdlz[["TIPO DE OFERTA","TIPO DE CARGA","CIDADE","UF"]].apply(lambda x: x.astype(str).str.strip().str.upper())
@@ -105,6 +94,7 @@ if uploaded_file:
     url_online = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRdZRJ5YctVpKyawelp6CT1ZEkqIAbkqjyRh9DBElof0X0hadYs9ujvKgdqUanPFg/pub?output=csv"
     df_online = pd.read_csv(url_online, header=0)
     df_online.columns = df_online.columns.str.strip()
+
     df_online["TIPO_CARGA_ONLINE"] = df_online.iloc[:, 9].str.upper().str.split("_").str[0]
     df_online["TIPO_OFERTA_ONLINE"] = df_online.iloc[:, 24].str.upper()
     df_online["Tabela_correta"] = df_online["TIPO_OFERTA_ONLINE"].str.capitalize() + " + " + df_online["TIPO_CARGA_ONLINE"].str.capitalize()
@@ -166,7 +156,11 @@ if uploaded_file:
     df["FRETE_CORRETO"] = df.apply(calcular_frete, axis=1)
 
     # --- Inicializar DED/PAR_CORR ---
-    df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(lambda cnpj: cnpj_especiais.get(str(cnpj).strip().replace("\xa0",""), {}).get("DEDICADO", 0.0))
+    def pegar_dedicado(cnpj):
+        cnpj = str(cnpj).strip().replace("\xa0","")
+        return cnpj_especiais.get(cnpj, {}).get("DEDICADO", 0.0)
+
+    df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(pegar_dedicado)
 
     # --- Identificar Multistop ---
     df["SHIP_PREFIX"] = df["SHIPMENT"].str[:-2]
@@ -236,78 +230,9 @@ if uploaded_file:
     df_conciliacao = df[colunas_validas].copy()
     df_conciliacao.rename(columns={"PALLET_CORR":"PALLET_CORR($)","DED/PAR_CORR":"DED/PAR_CORR($)"}, inplace=True)
 
-    # --- Filtros para limpar dados indesejados ---
-
-    # 1️⃣ Manter apenas Shipments que começam com '8'
-    if "SHIPMENT" in df_conciliacao.columns:
-        df_conciliacao = df_conciliacao[df_conciliacao["SHIPMENT"].astype(str).str.startswith("8")]
-
-    # 2️⃣ Manter apenas Tabelas Usadas válidas
-    if "Tabela usada" in df_conciliacao.columns:
-        tabelas_validas = [
-            "Fracionado + Reefer",
-            "Carreta + Reefer",
-            "Fracionado + Dry",
-            "Carreta + Dry"
-        ]
-        df_conciliacao = df_conciliacao[df_conciliacao["Tabela usada"].isin(tabelas_validas)]
-
-    # Resetar o índice após filtrar
-    df_conciliacao.reset_index(drop=True, inplace=True)
-
-
-    # --- Garantir 2 casas decimais para colunas de valores monetários ---
-    for col in ["DED/PAR_CORR($)", "PALLET_CORR($)"]:
-        if col in df_conciliacao.columns:
-            df_conciliacao[col] = df_conciliacao[col].round(2)
-            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
-
-        # --- Estilização e formatação ---
-    def colorir_divergencias(val):
-        if val == "ERRO":
-            return "background-color: #ff4d4d; color: white;"
-        elif val == "OK":
-            return "background-color: #4CAF50; color: white;"
-        return ""
-
-    # Colunas numéricas a formatar
-    colunas_formatar = [
-        "PESO_CT-e","FRETE PESO","FRETE_CORRETO","FRETE_OFER",
-        "DESCARGA","DESCARGA_CORR","ADEVALOREM","ADEVALOREM_CORR",
-        "PEDAGIO","PEDAGIO_CORR","DEDICADO/PARADA","DED/PAR_CORR","PALLET_CORR($)"
-    ]
-
-    # Função para limpar e converter valores
-    def limpar_valor(val):
-        val = str(val).strip()
-        if val=="" or val.lower()=="nan":
-            return np.nan
-        if "," in val:
-            val = val.replace(".","").replace(",",".")
-        else:
-            val = val.replace(",","")
-        try:
-            return float(val)
-        except:
-            return np.nan
-
-    # Aplicar limpeza e formatação
-    for col in colunas_formatar:
-        if col in df_conciliacao.columns:
-            df_conciliacao[col] = df_conciliacao[col].apply(limpar_valor)
-            if col == "FRETE_OFER":
-                df_conciliacao[col] = df_conciliacao[col] / 0.9635  # ajuste específico
-            df_conciliacao[col] = df_conciliacao[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
-
-
-    # --- Exibir DataFrame com estilo ---
-    st.dataframe(
-        df_conciliacao.style.map(
-            colorir_divergencias,
-            subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]
-        ),
-        use_container_width=True
-    )
+    # --- Exibir resultados ---
+    st.success("✅ Conciliação concluída com sucesso!")
+    st.dataframe(df_conciliacao, use_container_width=True)
 
     # --- Botão de download ---
     excel_data = to_excel(df_conciliacao)
@@ -319,4 +244,4 @@ if uploaded_file:
     )
 
 else:
-    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")           
+    st.info("👆 Faça o upload de um arquivo TMS para iniciar a conciliação.")
