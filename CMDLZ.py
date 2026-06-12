@@ -194,7 +194,7 @@ if uploaded_file:
 
     # --- Divergências ---
     df["DIV_DED/PAR"] = np.where(abs(df["DEDICADO/PARADA"]-df["DED/PAR_CORR"])<=0.05,"OK","ERRO")
-    df["DESCARGA_CORR"] = (df["PESO CALC"]*0.0561).round(2)
+    df["DESCARGA_CORR"] = (df["PESO CALC"]*0.0589828749351323).round(2)
     df["ADEVALOREM_CORR"] = (df["VAL.MERCADORIA"]*0.0003).round(2)
     df["PEDAGIO_CORR"] = df.apply(lambda row: round(row["PESO CALC"]*df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
                                                                                  (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA"]) &
