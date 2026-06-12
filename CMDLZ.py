@@ -207,8 +207,8 @@ if uploaded_file:
     df["DIV_FRETE"] = np.where(abs(df["FRETE PESO"]-df["FRETE_CORRETO"])<=0.05,"OK","ERRO")
     df["DIV_DESCARGA"] = np.where(abs(df["DESCARGA"]-df["DESCARGA_CORR"])<=0.05,"OK","ERRO")
     df["DIV_ADEVALOREM"] = np.where(abs(df["ADEVALOREM"]-df["ADEVALOREM_CORR"])<=0.05,"OK","ERRO")
-    df["DIV_PEDAGIO"] = np.where(abs(df["PEDAGIO"]-df["PEDAGIO_CORR"])<=0.05,"OK","ERRO")
-
+    df["DIV_PEDAGIO"] = np.where(abs(df["PEDAGIO"]-df["PEDAGIO_CORR"])<=0.05,"OK","ERRO")   
+    
     # --- Formatando data ---
     df["DATA DE AUTORIZACAO"] = pd.to_datetime(df["DATA DE AUTORIZACAO"], errors="coerce").dt.strftime("%d/%m/%Y")
 
