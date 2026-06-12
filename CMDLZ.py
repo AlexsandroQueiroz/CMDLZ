@@ -143,12 +143,12 @@ if uploaded_file:
 
     # --- Inicializar DED/PAR_CORR ---
     def calcular_dedicado(row):
-    if row["TIPO_OFERTA"] != "FRACIONADO":
-        return 0.0
+        if row["TIPO_OFERTA"] != "FRACIONADO":
+            return 0.0
 
-    cnpj = str(row["CNPJ DESTINATARIO"]).strip().replace("\xa0", "")
+        cnpj = str(row["CNPJ DESTINATARIO"]).strip().replace("\xa0", "")
 
-    return cnpj_especiais.get(
+        return cnpj_especiais.get(
         cnpj,
         {}
     ).get("DEDICADO", 0.0)
