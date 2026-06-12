@@ -142,7 +142,19 @@ if uploaded_file:
     df["FRETE_CORRETO"] = df.apply(calcular_frete, axis=1)
 
     # --- Inicializar DED/PAR_CORR ---
-    df["DED/PAR_CORR"] = df["CNPJ DESTINATARIO"].apply(lambda cnpj: cnpj_especiais.get(str(cnpj).strip().replace("\xa0",""), {}).get("DEDICADO", 0.0))
+    def calcular_dedicado(row):
+    if row["TIPO_OFERTA"] != "FRACIONADO":
+        return 0.0
+
+    cnpj = str(row["CNPJ DESTINATARIO"]).strip().replace("\xa0", "")
+
+    return cnpj_especiais.get(
+        cnpj,
+        {}
+    ).get("DEDICADO", 0.0)
+
+df["DED/PAR_CORR"] = df.apply(calcular_dedicado, axis=1)
+
 
     # --- Identificar Multistop ---
     df["SHIP_PREFIX"] = df["SHIPMENT"].str[:-2]
