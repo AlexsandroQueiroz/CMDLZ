@@ -153,7 +153,7 @@ if uploaded_file:
         {}
     ).get("DEDICADO", 0.0)
 
-df["DED/PAR_CORR"] = df.apply(calcular_dedicado, axis=1)
+    df["DED/PAR_CORR"] = df.apply(calcular_dedicado, axis=1)
 
 
     # --- Identificar Multistop ---
