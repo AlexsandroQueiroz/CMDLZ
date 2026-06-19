@@ -91,7 +91,19 @@ if uploaded_file:
     url_online = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRdZRJ5YctVpKyawelp6CT1ZEkqIAbkqjyRh9DBElof0X0hadYs9ujvKgdqUanPFg/pub?output=csv"
     df_online = pd.read_csv(url_online, header=0)
     df_online.columns = df_online.columns.str.strip()
-    df_online["TIPO_CARGA_ONLINE"] = df_online.iloc[:, 9].str.upper().str.split("_").str[0]
+    def extrair_tipo_carga(valor):    valor = str(valor).upper()
+    if "REEFER" in valor:
+        return "REEFER"
+
+    if "DRY" in valor:
+        return "DRY"
+
+    return ""
+
+    df_online["TIPO_CARGA_ONLINE"] = (
+    df_online.iloc[:, 9]
+    .apply(extrair_tipo_carga)
+)
     df_online["TIPO_OFERTA_ONLINE"] = df_online.iloc[:, 24].str.upper()
     df_online["Tabela_correta"] = df_online["TIPO_OFERTA_ONLINE"].str.capitalize() + " + " + df_online["TIPO_CARGA_ONLINE"].str.capitalize()
     df.insert(2, "Tabela usada", df["TIPO_OFERTA"].str.capitalize() + " + " + df["TIPO_CARGA"].str.capitalize())
