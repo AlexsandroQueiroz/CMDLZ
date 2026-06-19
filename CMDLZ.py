@@ -101,10 +101,34 @@ if uploaded_file:
     df_online_aux = df_online_aux.rename(columns={"Nº Buy Shipment": "SHIPMENT","Peso": "PESO_OFER","Frete Sem Impostos": "FRETE_OFER"})
     df = df.merge(df_online_aux, on="SHIPMENT", how="left")
 
+    # --- Extrair tabela correta da oferta Mondelez ---
+    df["TIPO_OFERTA_CORRETO"] = (
+        df["Tabela_correta"]
+        .fillna("")
+        .str.split(" + ", regex=False)
+        .str[0]
+        .str.upper()
+    )
+
+    df["TIPO_CARGA_CORRETO"] = (
+        df["Tabela_correta"]
+        .fillna("")
+        .str.split(" + ", regex=False)
+        .str[1]
+        .str.upper()
+    )
+
+    df["DIV_TABELA"] = np.where(
+        df["Tabela usada"] == df["Tabela_correta"],
+        "OK",
+        "ERRO"
+    )
+
+
     # --- Função calcular frete ---
     colunas_peso = [("V_0A1000",0,1000),("V_1000A3500",1001,3500),("V_3500A5000",3501,5000),("V_5000A7000",5001,7000),("V_7000A9000",7001,9000),("V_9000A11000",9001,11000),("V_11000A13000",11001,13000),("V_13000A15000",13001,15000),("V_15000A100000",15001,100000)]
     def calcular_frete(row):
-        oferta, carga, peso, cidade, uf = row["TIPO_OFERTA"], row["TIPO_CARGA"], row["PESO CALC"], row["CIDADE DESTINO"], row["UF"]
+        oferta, carga, peso, cidade, uf = row["TIPO_OFERTA_CORRETO"], row["TIPO_CARGA_CORRETO"], row["PESO CALC"], row["CIDADE DESTINO"], row["UF"]
         filtro = df_mdlz[(df_mdlz["TIPO DE OFERTA"]==oferta)&(df_mdlz["TIPO DE CARGA"]==carga)&(df_mdlz["CIDADE"]==cidade)&(df_mdlz["UF"]==uf)]
         if filtro.empty: return np.nan
         if oferta=="CARRETA" or peso<=1000: return round(filtro.iloc[0]["V_0A1000"],2)
@@ -143,7 +167,7 @@ if uploaded_file:
 
     # --- Inicializar DED/PAR_CORR ---
     def calcular_dedicado(row):
-        if row["TIPO_OFERTA"] != "FRACIONADO":
+        if row["TIPO_OFERTA_CORRETO"] != "FRACIONADO":
             return 0.0
 
         cnpj = str(row["CNPJ DESTINATARIO"]).strip().replace("\xa0", "")
@@ -197,11 +221,11 @@ if uploaded_file:
     df["DESCARGA_CORR"] = (df["PESO CALC"]*0.0589828749351323).round(2)
     df["ADEVALOREM_CORR"] = (df["VAL.MERCADORIA"]*0.0003).round(2)
     df["PEDAGIO_CORR"] = df.apply(lambda row: round(row["PESO CALC"]*df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
-                                                                                 (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA"]) &
+                                                                                 (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA_CORRETO"]) &
                                                                                  (df_mdlz["CIDADE"]==row["CIDADE DESTINO"]) &
                                                                                  (df_mdlz["UF"]==row["UF"])].iloc[0]["PEDAGIO"],2)
-                                  if row["TIPO_OFERTA"]=="FRACIONADO" and not df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
-                                                                                         (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA"]) &
+                                  if row["TIPO_OFERTA_CORRETO"]=="FRACIONADO" and not df_mdlz.loc[(df_mdlz["TIPO DE OFERTA"]=="FRACIONADO") &
+                                                                                         (df_mdlz["TIPO DE CARGA"]==row["TIPO_CARGA_CORRETO"]) &
                                                                                          (df_mdlz["CIDADE"]==row["CIDADE DESTINO"]) &
                                                                                          (df_mdlz["UF"]==row["UF"])].empty else 0.0, axis=1)
     df["DIV_FRETE"] = np.where(abs(df["FRETE PESO"]-df["FRETE_CORRETO"])<=0.05,"OK","ERRO")
@@ -215,7 +239,7 @@ if uploaded_file:
     # --- Colunas finais ---
     df["PESO_CT-e"] = df["PESO REAL"]
     colunas_validas = [
-        "SHIPMENT","MT","CTRC/SUBCON","Tabela usada","Tabela_correta","DATA DE AUTORIZACAO",
+        "SHIPMENT","MT","CTRC/SUBCON","Tabela usada","Tabela_correta","DIV_TABELA","DATA DE AUTORIZACAO",
         "CIDADE DESTINO","UF","PESO_OFER","PESO_CT-e","FRETE_OFER","FRETE PESO","FRETE_CORRETO",
         "DIV_FRETE","DESCARGA","DESCARGA_CORR","DIV_DESCARGA","ADEVALOREM","ADEVALOREM_CORR",
         "DIV_ADEVALOREM","PEDAGIO","PEDAGIO_CORR","DIV_PEDAGIO","DEDICADO/PARADA","DED/PAR_CORR",
@@ -292,7 +316,7 @@ if uploaded_file:
     st.dataframe(
         df_conciliacao.style.map(
             colorir_divergencias,
-            subset=["DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]
+            subset=["DIV_TABELA","DIV_FRETE","DIV_DESCARGA","DIV_ADEVALOREM","DIV_PEDAGIO","DIV_DED/PAR"]
         ),
         use_container_width=True
     )
