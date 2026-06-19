@@ -180,7 +180,7 @@ if uploaded_file:
             frete_faixa = calcular_frete(grupo.iloc[0])
             grupo["FRETE_RATEIO"] = (grupo["PESO_BASE"]/total_peso) * frete_faixa
 
-            VALOR_PARADA = 990.14
+            VALOR_PARADA = 1041.13
             grupo["PARADA_TOTAL"] = [0] + [VALOR_PARADA]*(len(grupo)-1)
             grupo["DED/PAR_CORR"] = (grupo["PESO_BASE"]/total_peso) * grupo["PARADA_TOTAL"].sum()
 
